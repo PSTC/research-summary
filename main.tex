@@ -1,0 +1,78 @@
+\documentclass[sigplan,screen,authorversion,10pt,nonacm,natbib=false]{acmart}
+\settopmatter{printfolios=true,printccs=false,printacmref=false}
+
+\title{Practical Sized Typing for Coq}
+%\subtitle{Research Summary}
+\author{\vspace{-1em} Jonathan Chan}
+%\orcid{0000-0003-0830-3180}
+%\affiliation{University of British Columbia}
+%\email{jon@alumni.ubc.ca}
+
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{mathtools}
+\usepackage{stmaryrd}
+\usepackage{minted}
+\usepackage{bussproofs}
+\usepackage{enumitem}
+\usepackage[style=numeric]{biblatex}
+
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\renewcommand*{\bibfont}{\scriptsize}
+% langs
+\newcommand{\lang}{CIC$\widehat{*}$\ }
+\newcommand{\CIChat}{CIC$\widehat{~}$\ }
+\newcommand{\CIChatbar}{CIC$\widehat{\text{\underline{\:\:}}}$\ }
+\newcommand{\Fhat}{F$\widehat{~}$\ }
+\newcommand{\CIChatl}{CIC$\widehat{_l}$}
+\newcommand{\CChatomega}{CC$\widehat{\omega}$\ }
+% terms (for math envs)
+\newcommand{\Prop}{\text{Prop}}
+\newcommand{\Set}{\text{Set}}
+\newcommand{\Type}[1]{\text{Type}_{#1}}
+\newcommand{\letin}[4]{\text{let}\ #1 : #2 \coloneqq #3\ \text{in}\ #4}
+\newcommand{\caseof}[4]{\text{case}_{#1}\ #2\ of\ #3 : #4}
+\newcommand{\fix}[3]{\text{fix}_{#1}\ #2 : #3}
+\newcommand{\cofix}[3]{\text{cofix}_{#1}\ #2 : #3}
+% other (for math envs)
+\newcommand{\set}[1]{\{#1\}}
+% hyphenation
+\newcommand{\coinductive}{(co)\-inductive }
+\newcommand{\corecursive}{(co)\-recursive }
+\newcommand{\cofixpoint}{(co)\-fixpoint }
+\newcommand{\cofixpoints}{(co)\-fixpoints }
+
+\hyphenation{para-metrized}
+\hyphenation{re-duc-tion}
+
+\addbibresource{biblio.bib}
+
+\begin{document}
+\maketitle
+
+Proof assistants based on dependent type theory rely on the termination of recursive functions and the productivity of corecursive functions to ensure two important properties: logical consistency, to disallow proving false propositions; and decidability of type-checking, to allow checking that a program proves a given proposition.
+
+In the proof assistant Coq, termination and productivity are enforced by a \textit{guard predicate} on fixpoints and cofixpoints respectively. For fixpoints, recursive calls must be \textit{guarded by destructors}; that is, they must be performed on structurally smaller arguments. For cofixpoints, corecursive calls must be \textit{guarded by constructors}; that is, they must be the structural arguments of a constructor.
+
+The actual implementation of the guard predicate extends beyond the guarded-by-destructors and guarded-by-constructors conditions to accept a larger set of terminating and productive functions. In particular, function calls will be unfolded (i.e. inlined) in the bodies of \cofixpoints as needed before checking the guard predicate. This has a few disadvantages: firstly, the bodies of these functions are required, which hinders modular design; and secondly, the \cofixpoint bodies may become very large after unfolding, which can decrease the performance of type-checking. Furthermore, subtle syntactic changes in functions unfolded by \cofixpoints can cause the guard predicate to wrongly reject the program even if the functions still behave the same. The dependence of guardedness checking on the structure of functions external to a \cofixpoint can lead to difficulty in debugging, especially for larger programs.
+
+An alternative to guard predicates for termination and productivity enforcement uses \textit{sized types}. In essence, \coinductive types are annotated with a size annotation, which can either be some size variable or the successor of another size annotation, like an arithmetic with only zero and addition by one. If some object has a type with size $s$, then the object wrapped in a constructor would have a type with successor size $\hat{s}$.
+
+Termination- and productivity-checking is then simply a type-checking rule that uses size information. For termination, the type of the recursive call must have a smaller size than that of the outer fixpoint; for productivity, the outer cofixpoint must have a larger size than that of the corecursive call. This ensures that fixpoints act on ever-smaller objects until reaching a base case, and that cofixpoints produce ever-larger objects.
+
+With this type-based method, \cofixpoints only need the type of a function where it formerly would have needed to unfold the function body. Additionally, the syntactic form of the function would have no effect on its type and thus no effect on the overall typeability of the (co)\-fixpoint. Some \cofixpoints preserve the size of arguments in ways that aren't syntactically obvious may be typed to be sized-preserving, allowing them to be called inside of \corecursive calls and expanding the set of terminating and productive functions that can be accepted.
+
+Past work on sized types in the Calculus of (Co)Inductive Constructions (CIC) such as \CIChat\cite{cic-hat} and \CIChatbar\cite{cic-hat-bar} describe type systems where sizes can be inferred and are never provided by the user in much the same way other type systems might perform type inference. However, they have some practical issues:
+
+\begin{itemize}[leftmargin=1em]
+    \item They require nontrivial additions to the language, making existing Coq code incompatible without adjustments that must be made manually. These include annotations that mark the positions of \corecursive and size-preserved types, and polarity annotations on \coinductive definitions that describe how subtyping works with respect to their parameters.
+    \item They require the \corecursive arguments of \cofixpoints to have literal \coinductive types. With dependent types, it is possible to write expressions that evaluate to a type and to use these expressions where one would use types. However, while these works present dependently-typed systems, they disallow argument types being expressions that might otherwise evaluate to \coinductive types.
+    \item They do not specify how global definitions should be handled. Ideally, size inference should be done on each function independently for performance reasons.
+\end{itemize}
+
+In this project, we have designed an extension of \CIChat called \lang that resolves these issues without requiring any changes to the surface syntax of Coq. We have also designed and implemented a size inference algorithm based on \lang within Coq's kernel that allows for termination- and productivity-checking of existing Coq code using sized types instead of guardedness checking \footnote{\url{https://github.com/ionathanch/coq/tree/dev}}. In our implementation, we are easily able to accept terminating (co)recursive functions such as \texttt{quicksort} which would otherwise require user-provided proofs under guardedness checking only.
+
+\printbibliography[title=\small{References}]
+
+\end{document}
